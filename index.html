@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Game Recommendation System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        .game-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .game-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        #recommend-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #fff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white antialiased">
+
+    <div class="container mx-auto px-4 py-8 md:py-12">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500">AI Game Recommendation Engine</h1>
+            <p class="text-gray-400 text-lg">Describe your perfect game and let AI find it for you!</p>
+        </header>
+
+        <!-- Prompt Section -->
+        <div class="bg-gray-800 rounded-xl p-6 md:p-8 mb-10 shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 text-indigo-400">What are you in the mood for?</h2>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="prompt-input" placeholder="e.g., 'a relaxing farming sim' or 'a challenging sci-fi shooter'" class="flex-grow bg-gray-700 text-white rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full">
+                <button id="recommend-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2">
+                    <span id="btn-text">Get Recommendations</span>
+                    <div id="loader" class="loader hidden"></div>
+                </button>
+            </div>
+        </div>
+        
+        <div class="text-center mb-12">
+            <p id="results-message" class="text-gray-500 italic h-6"></p>
+        </div>
+
+        <!-- Results Section -->
+        <main>
+            <div id="results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+                <!-- Recommended games will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- DATA SOURCE ---
+        // A collection of sample games. In a real application, this would come from an API.
+        const games = [
+            { id: 1, title: 'The Witcher 3: Wild Hunt', description: 'A story-driven, open-world RPG set in a visually stunning fantasy universe full of meaningful choices and impactful consequences.', genres: ['RPG', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.8, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Witcher+3' },
+            { id: 2, title: 'Red Dead Redemption 2', description: 'An epic tale of life in America’s unforgiving heartland. The game\'s vast and atmospheric world also provides the foundation for a brand new online multiplayer experience.', genres: ['Action', 'Adventure', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox'], rating: 9.7, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=RDR2' },
+            { id: 3, title: 'Elden Ring', description: 'A fantasy action-RPG adventure set within a world created by Hidetaka Miyazaki and George R. R. Martin.', genres: ['Action', 'RPG', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox'], rating: 9.6, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Elden+Ring' },
+            { id: 4, title: 'The Legend of Zelda: Breath of the Wild', description: 'Step into a world of discovery, exploration and adventure in The Legend of Zelda: Breath of the Wild, a boundary-breaking new game in the acclaimed series.', genres: ['Adventure', 'Open-World', 'RPG'], platforms: ['Switch'], rating: 9.5, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Zelda' },
+            { id: 5, title: 'Hades', description: 'Defy the god of the dead as you hack and slash out of the Underworld in this rogue-like dungeon crawler from the creators of Bastion and Transistor.', genres: ['Action', 'Roguelike'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.4, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Hades' },
+            { id: 6, title: 'Stardew Valley', description: 'You\'ve inherited your grandfather\'s old farm plot in Stardew Valley. Armed with hand-me-down tools and a few coins, you set out to begin your new life.', genres: ['Simulation', 'RPG'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.5, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Stardew' },
+            { id: 7, title: 'Counter-Strike 2', description: 'For over two decades, Counter-Strike has offered an elite competitive experience, one shaped by millions of players from across the globe.', genres: ['FPS', 'Tactical'], platforms: ['PC'], rating: 9.1, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=CS2' },
+            { id: 8, title: 'Cyberpunk 2077', description: 'An open-world, action-adventure story set in Night City, a megalopolis obsessed with power, glamour and body modification.', genres: ['Action', 'RPG', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox'], rating: 8.8, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Cyberpunk' },
+            { id: 9, title: 'God of War Ragnarök', description: 'Embark on a mythic journey for answers and allies before Ragnarök arrives.', genres: ['Action', 'Adventure'], platforms: ['PlayStation'], rating: 9.4, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=GoW' },
+            { id: 10, title: 'Baldur\'s Gate 3', description: 'Gather your party and return to the Forgotten Realms in a tale of fellowship and betrayal, sacrifice and survival, and the lure of absolute power.', genres: ['RPG', 'Strategy'], platforms: ['PC', 'PlayStation'], rating: 9.9, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=BG3' },
+            { id: 11, title: 'Hollow Knight', description: 'Forge your own path in Hollow Knight! An epic action adventure through a vast ruined kingdom of insects and heroes.', genres: ['Platformer', 'Metroidvania'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.3, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Hollow+Knight' },
+            { id: 12, title: 'Celeste', description: 'Help Madeline survive her inner demons on her journey to the top of Celeste Mountain, in this super-tight, hand-crafted platformer from the creators of TowerFall.', genres: ['Platformer', 'Indie'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.2, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Celeste' },
+            { id: 13, title: 'Fortnite', description: 'A free-to-play Battle Royale game with numerous game modes for every type of player.', genres: ['Battle Royale', 'Action'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 8.5, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Fortnite' },
+            { id: 14, title: 'Civilization VI', description: 'Build an empire to stand the test of time in the latest installment of the award-winning Civilization franchise.', genres: ['Strategy', 'Turn-Based'], platforms: ['PC', 'Switch'], rating: 9.0, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Civ+VI' },
+            { id: 15, title: 'Among Us', description: 'An online and local party game of teamwork and betrayal for 4-15 players...in space!', genres: ['Party', 'Social'], platforms: ['PC', 'Switch', 'PlayStation', 'Xbox'], rating: 8.7, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Among+Us' },
+            { id: 16, title: 'Forza Horizon 5', description: 'Explore the vibrant and ever-evolving open world landscapes of Mexico with limitless, fun driving action in hundreds of the world’s greatest cars.', genres: ['Racing', 'Open-World', 'Sports'], platforms: ['PC', 'Xbox'], rating: 9.2, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Forza+5' }
+        ];
+
+        // --- DOM ELEMENTS ---
+        const promptInput = document.getElementById('prompt-input');
+        const recommendBtn = document.getElementById('recommend-btn');
+        const resultsGrid = document.getElementById('results-grid');
+        const resultsMessage = document.getElementById('results-message');
+        const btnText = document.getElementById('btn-text');
+        const loader = document.getElementById('loader');
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            recommendBtn.addEventListener('click', getAIRecommendations);
+            promptInput.addEventListener('keyup', (event) => {
+                if (event.key === 'Enter') {
+                    getAIRecommendations();
+                }
+            });
+            renderInitialState();
+        });
+
+        function renderInitialState() {
+             resultsGrid.innerHTML = '';
+             resultsMessage.textContent = 'Enter a description above to get started!';
+        }
+
+        // --- FUNCTIONS ---
+
+        /**
+         * Toggles the loading state of the UI.
+         * @param {boolean} isLoading - Whether to show the loading state.
+         */
+        function setLoading(isLoading) {
+            recommendBtn.disabled = isLoading;
+            if (isLoading) {
+                btnText.textContent = 'Thinking...';
+                loader.classList.remove('hidden');
+                resultsMessage.textContent = 'AI is searching for the best games...';
+            } else {
+                btnText.textContent = 'Get Recommendations';
+                loader.classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Fetches AI-powered game recommendations based on the user's prompt.
+         */
+        async function getAIRecommendations() {
+            const userPrompt = promptInput.value.trim();
+            if (!userPrompt) {
+                resultsMessage.textContent = 'Please enter what you\'re looking for in a game.';
+                return;
+            }
+
+            setLoading(true);
+            resultsGrid.innerHTML = ''; // Clear previous results
+
+            // --- IMPORTANT ---
+            // To run this locally, you need a Google AI API Key.
+            // 1. Visit https://aistudio.google.com/app/apikey to create one.
+            // 2. Paste your key in the line below.
+            // NOTE: In some collaborative environments, the key might be provided automatically.
+            const apiKey = typeof __API_KEY__ !== 'undefined' ? __API_KEY__ : "YOUR_API_KEY_HERE";
+
+            if (apiKey === "YOUR_API_KEY_HERE") {
+                resultsMessage.textContent = "API Key not set. Please get a key from Google AI Studio and add it to the script to run this application.";
+                setLoading(false);
+                return;
+            }
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            // This prompt instructs the AI to act as a recommender and only use our provided game list.
+            const fullPrompt = `You are an expert game recommender. Based on the user's request, select the top 5 most relevant games from the provided list. Return only the games that are a good match.
+
+User Request: "${userPrompt}"
+
+Game List (use only these games):
+${JSON.stringify(games, null, 2)}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: fullPrompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                "id": { "type": "NUMBER" },
+                                "title": { "type": "STRING" },
+                                "description": { "type": "STRING" },
+                                "genres": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "platforms": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "rating": { "type": "NUMBER" },
+                                "imageUrl": { "type": "STRING" },
+                            },
+                        }
+                    }
+                }
+            };
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({ error: { message: response.statusText } }));
+                    const errorMessage = errorBody.error?.message || response.statusText;
+                    throw new Error(`API Error (${response.status}): ${errorMessage}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                    const jsonText = result.candidates[0].content.parts[0].text;
+                    const recommendedGames = JSON.parse(jsonText);
+                    renderResults(recommendedGames);
+                } else {
+                    throw new Error("Could not find recommendations in AI response.");
+                }
+
+            } catch (error) {
+                console.error("Error fetching AI recommendations:", error);
+                 if (error.message.startsWith('API Error')) {
+                    resultsMessage.textContent = `Error from AI service: ${error.message}. This could be due to a configuration or API key issue.`;
+                } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                     resultsMessage.textContent = "Network error: Could not connect to the AI service. Please try again later.";
+                } else if (error instanceof SyntaxError) {
+                    resultsMessage.textContent = "The AI response was not in the expected format. It might not have found a good match. Please try a different search term.";
+                } else {
+                    resultsMessage.textContent = "Sorry, an unexpected error occurred. Please try again.";
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        /**
+         * Renders the list of recommended games to the page.
+         * @param {object[]} recommendedGames - The array of game objects to display.
+         */
+        function renderResults(recommendedGames) {
+            resultsGrid.innerHTML = ''; // Clear previous results
+
+            if (!recommendedGames || recommendedGames.length === 0) {
+                resultsMessage.textContent = 'The AI couldn\'t find a match. Try a different description!';
+                return;
+            }
+            
+            resultsMessage.textContent = `The AI recommends these ${recommendedGames.length} games for you!`;
+
+            recommendedGames.forEach(game => {
+                const card = document.createElement('div');
+                card.className = 'game-card bg-gray-800 rounded-lg overflow-hidden shadow-lg flex flex-col';
+                
+                const genrePills = game.genres.map(g => `<span class="bg-indigo-600 text-indigo-100 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${g}</span>`).join('');
+                const platformPills = game.platforms.map(p => `<span class="bg-gray-600 text-gray-200 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${p}</span>`).join('');
+
+                card.innerHTML = `
+                    <img src="${game.imageUrl}" alt="${game.title}" class="w-full h-48 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/600x400/1a202c/ffffff?text=Image+Not+Found';">
+                    <div class="p-5 flex flex-col flex-grow">
+                        <div class="flex justify-between items-start mb-2">
+                           <h3 class="text-xl font-bold text-white">${game.title}</h3>
+                           <span class="text-lg font-bold text-amber-400">${game.rating}</span>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-4 flex-grow">${game.description}</p>
+                        <div class="mt-auto pt-4">
+                           <div class="mb-3 flex flex-wrap gap-y-2">${genrePills}</div>
+                           <div class="flex flex-wrap gap-y-2">${platformPills}</div>
+                        </div>
+                    </div>
+                `;
+                resultsGrid.appendChild(card);
+            });
+        }
+    </script>
+
+</body>
+</html>
+
