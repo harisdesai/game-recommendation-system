@@ -9,7 +9,7 @@
         // Constants
         const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
         const GEN_API_KEY = "AIzaSyDKgN0eDqenlPFNR5fwddmaaH1TEK7hZBQ"; // Provided by Canvas
-        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A brief, one-sentence description.', 'system_requirements': 'A single-line summary of key requirements (e.g., 'Minimum: Windows 10, i5 CPU, 8GB RAM, GTX 1060').', 'platforms': '...' }";
+        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A brief, one-sentence description.', 'system_requirements': 'A very concise, high-level summary of system requirements (e.g., 'Requires a modern gaming PC').', 'platforms': '...' }";
 
         // UI elements
         const form = document.getElementById('recommendation-form');
@@ -198,7 +198,7 @@
                 <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-gray-100 font-orbitron">Initiate Scan</h2>
                 <form id="recommendation-form" class="space-y-6">
                     <div>
-                        <label for="user-prompt" class="block text-sm font-medium text-gray-300 mb-2">Enter your preferences:</label>
+                        <label for="user-prompt" class="block text-sm font-medium text-gray-300 mb-2">Describe your desired game:</label>
                         <input type="text" id="user-prompt" placeholder="e.g., 'a relaxing sci-fi puzzle game for PC'" class="w-full p-3 rounded-lg bg-slate-700 text-gray-200 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors">
                     </div>
                     <button id="recommend-btn" type="submit" class="w-full mt-6 py-4 px-6 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-600 hover:to-indigo-700 text-white font-bold rounded-full shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed">
