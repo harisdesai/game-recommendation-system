@@ -34,7 +34,7 @@
         }
 
         // --- AI Recommendation Logic (Prompt-Based) ---
-        async function getRecommendation(userQuery) {
+        async function getRecommendation(userQuery, isShuffle = false) {
             // Update UI for loading state
             loadingSpinner.classList.remove('hidden');
             recommendBtn.disabled = true;
@@ -43,9 +43,16 @@
             // Store the last valid prompt for the shuffle button
             lastUserPrompt = userQuery;
 
+            // To ensure new results on shuffle, we append a unique ID to the prompt.
+            // This makes the AI treat it as a new request.
+            let uniquePrompt = userQuery;
+            if (isShuffle) {
+                uniquePrompt += ` - unique_id:${Date.now()}`;
+            }
+
             // Payload for the AI Studio API call
             const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
+                contents: [{ parts: [{ text: uniquePrompt }] }],
                 systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
                 generationConfig: {
                     // This configuration ensures the response is a structured JSON array
@@ -123,7 +130,7 @@
             const shuffleBtn = document.getElementById('shuffle-btn');
             shuffleBtn.addEventListener('click', () => {
                 if (lastUserPrompt) {
-                    getRecommendation(lastUserPrompt);
+                    getRecommendation(lastUserPrompt, true);
                 } else {
                     showModal("Please perform a scan first before shuffling.");
                 }
