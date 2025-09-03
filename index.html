@@ -9,7 +9,8 @@
         // Constants
         const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
         const GEN_API_KEY = "AIzaSyDKgN0eDqenlPFNR5fwddmaaH1TEK7hZBQ"; // Provided by Canvas
-        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A brief, one-sentence description.', 'system_requirements': 'A concise list of key components, including processor, RAM, graphics card, and storage.', 'platforms': '...' }";
+        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A very brief, one-sentence description, a maximum of 10 words.', 'system_requirements': 'A single, concise sentence listing only the key components (e.g., 'Requires a modern CPU, 8GB RAM, and a GTX 970 GPU').', 'platforms': '...' }";
+        const MAX_SYSTEM_REQ_LENGTH = 120; // Maximum character length for system requirements
 
         // UI elements
         const form = document.getElementById('recommendation-form');
@@ -109,16 +110,30 @@
                 <div class="p-6 rounded-2xl shadow-xl border-4 border-cyan-400 animate-fade-in-up">
                     <h2 class="text-2xl sm:text-3xl font-bold text-cyan-300 mb-4 text-center font-orbitron">Recommended Galactic Adventures:</h2>
                     <ul class="space-y-6">
-                        ${games.map(game => `
-                            <li class="p-6 bg-slate-700 rounded-xl text-white shadow-lg border border-slate-600 transition-transform transform hover:scale-105">
-                                <h3 class="text-xl sm:text-2xl text-cyan-200 font-bold mb-2">${game.game_title}</h3>
-                                <p class="text-gray-300 text-sm mb-4">${game.description}</p>
-                                <div class="text-xs text-gray-400 space-y-1">
-                                    <p class="font-semibold text-gray-200">Platforms: <span class="font-normal text-gray-400">${game.platforms}</span></p>
-                                    <p class="font-semibold text-gray-200">System Requirements: <span class="font-normal text-gray-400">${game.system_requirements}</span></p>
-                                </div>
-                            </li>
-                        `).join('')}
+                        ${games.map(game => {
+                            // Sanitize the data to prevent bugs
+                            const title = game.game_title || "Unknown Title";
+                            const description = game.description || "Description not available.";
+                            let systemReq = game.system_requirements || "System requirements not available.";
+
+                            // Truncate system requirements if they are too long
+                            if (systemReq.length > MAX_SYSTEM_REQ_LENGTH) {
+                                systemReq = systemReq.substring(0, MAX_SYSTEM_REQ_LENGTH) + '...';
+                            }
+
+                            const platforms = game.platforms || "Platforms not available.";
+
+                            return `
+                                <li class="p-6 bg-slate-700 rounded-xl text-white shadow-lg border border-slate-600 transition-transform transform hover:scale-105">
+                                    <h3 class="text-xl sm:text-2xl text-cyan-200 font-bold mb-2">${title}</h3>
+                                    <p class="text-gray-300 text-sm mb-4">${description}</p>
+                                    <div class="text-xs text-gray-400 space-y-1">
+                                        <p class="font-semibold text-gray-200">Platforms: <span class="font-normal text-gray-400">${platforms}</span></p>
+                                        <p class="font-semibold text-gray-200">System Requirements: <span class="font-normal text-gray-400">${systemReq}</span></p>
+                                    </div>
+                                </li>
+                            `;
+                        }).join('')}
                     </ul>
                     <div class="flex justify-center mt-6">
                         <button id="shuffle-btn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-800">
