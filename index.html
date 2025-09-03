@@ -31,6 +31,7 @@
 
         let lastUserPrompt = null;
         let loadingInterval = null;
+        const API_TIMEOUT = 20000; // 20 seconds timeout for the API call
 
         // Functions
         function showModal(message) {
@@ -86,13 +87,19 @@
                 }
             };
 
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), API_TIMEOUT);
+
             try {
-                // Fetch the recommendation from the API
+                // Fetch the recommendation from the API with a timeout
                 const response = await fetch(`${API_URL}${GEN_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
                 });
+
+                clearTimeout(id);
 
                 if (!response.ok) {
                     throw new Error(`API call failed with status: ${response.status}`);
@@ -108,8 +115,12 @@
                 }
 
             } catch (error) {
-                console.error("Error during API call:", error);
-                showModal("Network error or invalid response. Please check your connection and try again.");
+                if (error.name === 'AbortError') {
+                    showModal("The request took too long. Please try again or refine your query.");
+                } else {
+                    console.error("Error during API call:", error);
+                    showModal("Network error or invalid response. Please check your connection and try again.");
+                }
             } finally {
                 // Reset UI state
                 clearInterval(loadingInterval);
