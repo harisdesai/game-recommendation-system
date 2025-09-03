@@ -9,7 +9,7 @@
         // Constants
         const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
         const GEN_API_KEY = "AIzaSyDKgN0eDqenlPFNR5fwddmaaH1TEK7hZBQ"; // Provided by Canvas
-        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A brief, one-sentence description.', 'system_requirements': 'A very concise, high-level summary of system requirements (e.g., 'Requires a modern gaming PC').', 'platforms': '...' }";
+        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A brief, one-sentence description.', 'system_requirements': 'A concise list of key components, including processor, RAM, graphics card, and storage.', 'platforms': '...' }";
 
         // UI elements
         const form = document.getElementById('recommendation-form');
