@@ -3,279 +3,321 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Game Recommendation System</title>
+    <title>Game Suggester</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09;
+            color: #d1d5db;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
         }
-        .game-card {
+        .container {
+            background-color: #1c1917;
+            padding: 2.5rem;
+            border-radius: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            border: 1px solid #292524;
+        }
+        .message-box {
+            position: fixed;
+            top: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #44403c;
+            color: #fff;
+            padding: 0.75rem 2rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .message-box.show {
+            opacity: 1;
+        }
+        .result-card, .history-card {
+            background-color: #292524;
+            border-radius: 1rem;
+            padding: 1.5rem;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            border: 1px solid #44403c;
         }
-        .game-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        .result-card:hover, .history-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
         }
-        #recommend-btn:disabled {
-            cursor: not-allowed;
-            opacity: 0.7;
+        .result-card {
+            opacity: 0;
+            animation: fadeIn 0.8s forwards;
+            animation-delay: 0.2s;
         }
-        .loader {
-            width: 20px;
-            height: 20px;
-            border: 3px solid #fff;
-            border-bottom-color: transparent;
-            border-radius: 50%;
-            display: inline-block;
-            box-sizing: border-box;
-            animation: rotation 1s linear infinite;
-        }
-        @keyframes rotation {
-            0% {
-                transform: rotate(0deg);
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
             }
-            100% {
-                transform: rotate(360deg);
+            to {
+                opacity: 1;
+                transform: translateY(0);
             }
+        }
+        h1, h2 {
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white antialiased">
-
-    <div class="container mx-auto px-4 py-8 md:py-12">
-        <!-- Header -->
-        <header class="text-center mb-10">
-            <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500">AI Game Recommendation Engine</h1>
-            <p class="text-gray-400 text-lg">Describe your perfect game and let AI find it for you!</p>
-        </header>
-
-        <!-- Prompt Section -->
-        <div class="bg-gray-800 rounded-xl p-6 md:p-8 mb-10 shadow-lg">
-            <h2 class="text-2xl font-semibold mb-4 text-indigo-400">What are you in the mood for?</h2>
-            <div class="flex flex-col sm:flex-row gap-4">
-                <input type="text" id="prompt-input" placeholder="e.g., 'a relaxing farming sim' or 'a challenging sci-fi shooter'" class="flex-grow bg-gray-700 text-white rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full">
-                <button id="recommend-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 flex items-center justify-center gap-2">
-                    <span id="btn-text">Get Recommendations</span>
-                    <div id="loader" class="loader hidden"></div>
-                </button>
-            </div>
-        </div>
+<body>
+    <div class="container">
+        <h1 class="text-4xl sm:text-5xl font-bold text-center text-amber-500">Game Suggester</h1>
+        <p id="userIdDisplay" class="text-xs text-center text-gray-500 break-all -mt-4"></p>
         
-        <div class="text-center mb-12">
-            <p id="results-message" class="text-gray-500 italic h-6"></p>
+        <div class="space-y-6">
+            <textarea
+                id="promptInput"
+                class="w-full h-36 p-5 text-stone-200 bg-stone-900 border border-stone-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-stone-400 resize-none transition-all duration-300 shadow-inner"
+                placeholder="Describe the game you're in the mood for. For example: 'A stylish detective game with a noir theme' or 'A relaxing game where I can build things without pressure.'"></textarea>
+            
+            <button
+                id="suggestBtn"
+                class="w-full px-6 py-4 font-semibold text-white bg-amber-600 rounded-2xl hover:bg-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-stone-900 transition-all duration-300 shadow-lg hover:shadow-xl">
+                Suggest Games
+            </button>
         </div>
 
-        <!-- Results Section -->
-        <main>
-            <div id="results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
-                <!-- Recommended games will be injected here -->
+        <div id="loadingIndicator" class="hidden text-center text-base font-medium text-stone-400">
+            <svg class="animate-spin h-6 w-6 mr-3 inline text-amber-500" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Generating suggestions...
+        </div>
+
+        <div id="results" class="space-y-4">
+            <h2 class="text-2xl font-semibold text-stone-100">Suggestions</h2>
+            <div id="suggestionsList" class="p-2">
+                <p class="text-stone-400 text-sm italic">Suggestions will appear here after you describe what you'd like to play.</p>
             </div>
-        </main>
+            <button id="whatsappShareBtn" class="hidden w-full px-6 py-4 font-semibold text-white bg-green-600 rounded-2xl hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-stone-900 transition-all duration-300 shadow-lg hover:shadow-xl">
+                <div class="flex items-center justify-center space-x-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12.03 2.03C6.545 2.03 2.08 6.51 2.02 11.97l-.01 2.05L2 14.07l-1.99 7.02 7.2-.21c1.9.89 4.08 1.34 6.27 1.34h.01c5.485 0 9.95-4.48 9.97-9.97C22.02 6.5 17.55 2.03 12.03 2.03zM16.14 15.65c-.15.25-.43.34-.69.34-.18 0-.35-.06-.5-.18-.32-.26-.74-.43-1.07-.43-.33 0-.64.17-.95.43-.31.26-.65.43-.99.43-.34 0-.68-.17-1.01-.43-.33-.26-.64-.43-.98-.43-.34 0-.68.17-1.02.43-.34.26-.67.43-1.01.43-.18 0-.35-.06-.5-.18-.28-.23-.48-.52-.52-.82-.04-.3-.02-.6.04-.9.23-.74.67-1.4 1.25-1.92l.01-.01c.58-.52 1.26-1 1.95-1.3l.01-.01c.69-.3 1.4-.44 2.15-.44h.01c.75 0 1.46.14 2.15.44l.01.01c.69.3 1.37.78 1.95 1.3l.01.01c.58.52 1.02 1.18 1.25 1.92.06.3.08.6.04.9-.04.3-.24.59-.52.82-.15.12-.32.18-.5.18-.26 0-.54-.09-.69-.34z"/>
+                    </svg>
+                    <span>Share on WhatsApp</span>
+                </div>
+            </button>
+        </div>
+
+        <div id="previousSuggestions" class="space-y-4">
+            <h2 class="text-2xl font-semibold text-stone-100">Previous Suggestions</h2>
+            <div id="historyList" class="p-2 space-y-4">
+                <p class="text-stone-400 text-sm italic">Your past suggestions will be loaded here.</p>
+            </div>
+        </div>
     </div>
+    <div id="messageBox" class="message-box"></div>
 
-    <script>
-        // --- DATA SOURCE ---
-        // A collection of sample games. In a real application, this would come from an API.
-        const games = [
-            { id: 1, title: 'The Witcher 3: Wild Hunt', description: 'A story-driven, open-world RPG set in a visually stunning fantasy universe full of meaningful choices and impactful consequences.', genres: ['RPG', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.8, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Witcher+3' },
-            { id: 2, title: 'Red Dead Redemption 2', description: 'An epic tale of life in America’s unforgiving heartland. The game\'s vast and atmospheric world also provides the foundation for a brand new online multiplayer experience.', genres: ['Action', 'Adventure', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox'], rating: 9.7, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=RDR2' },
-            { id: 3, title: 'Elden Ring', description: 'A fantasy action-RPG adventure set within a world created by Hidetaka Miyazaki and George R. R. Martin.', genres: ['Action', 'RPG', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox'], rating: 9.6, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Elden+Ring' },
-            { id: 4, title: 'The Legend of Zelda: Breath of the Wild', description: 'Step into a world of discovery, exploration and adventure in The Legend of Zelda: Breath of the Wild, a boundary-breaking new game in the acclaimed series.', genres: ['Adventure', 'Open-World', 'RPG'], platforms: ['Switch'], rating: 9.5, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Zelda' },
-            { id: 5, title: 'Hades', description: 'Defy the god of the dead as you hack and slash out of the Underworld in this rogue-like dungeon crawler from the creators of Bastion and Transistor.', genres: ['Action', 'Roguelike'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.4, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Hades' },
-            { id: 6, title: 'Stardew Valley', description: 'You\'ve inherited your grandfather\'s old farm plot in Stardew Valley. Armed with hand-me-down tools and a few coins, you set out to begin your new life.', genres: ['Simulation', 'RPG'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.5, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Stardew' },
-            { id: 7, title: 'Counter-Strike 2', description: 'For over two decades, Counter-Strike has offered an elite competitive experience, one shaped by millions of players from across the globe.', genres: ['FPS', 'Tactical'], platforms: ['PC'], rating: 9.1, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=CS2' },
-            { id: 8, title: 'Cyberpunk 2077', description: 'An open-world, action-adventure story set in Night City, a megalopolis obsessed with power, glamour and body modification.', genres: ['Action', 'RPG', 'Open-World'], platforms: ['PC', 'PlayStation', 'Xbox'], rating: 8.8, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Cyberpunk' },
-            { id: 9, title: 'God of War Ragnarök', description: 'Embark on a mythic journey for answers and allies before Ragnarök arrives.', genres: ['Action', 'Adventure'], platforms: ['PlayStation'], rating: 9.4, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=GoW' },
-            { id: 10, title: 'Baldur\'s Gate 3', description: 'Gather your party and return to the Forgotten Realms in a tale of fellowship and betrayal, sacrifice and survival, and the lure of absolute power.', genres: ['RPG', 'Strategy'], platforms: ['PC', 'PlayStation'], rating: 9.9, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=BG3' },
-            { id: 11, title: 'Hollow Knight', description: 'Forge your own path in Hollow Knight! An epic action adventure through a vast ruined kingdom of insects and heroes.', genres: ['Platformer', 'Metroidvania'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.3, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Hollow+Knight' },
-            { id: 12, title: 'Celeste', description: 'Help Madeline survive her inner demons on her journey to the top of Celeste Mountain, in this super-tight, hand-crafted platformer from the creators of TowerFall.', genres: ['Platformer', 'Indie'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 9.2, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Celeste' },
-            { id: 13, title: 'Fortnite', description: 'A free-to-play Battle Royale game with numerous game modes for every type of player.', genres: ['Battle Royale', 'Action'], platforms: ['PC', 'PlayStation', 'Xbox', 'Switch'], rating: 8.5, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Fortnite' },
-            { id: 14, title: 'Civilization VI', description: 'Build an empire to stand the test of time in the latest installment of the award-winning Civilization franchise.', genres: ['Strategy', 'Turn-Based'], platforms: ['PC', 'Switch'], rating: 9.0, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Civ+VI' },
-            { id: 15, title: 'Among Us', description: 'An online and local party game of teamwork and betrayal for 4-15 players...in space!', genres: ['Party', 'Social'], platforms: ['PC', 'Switch', 'PlayStation', 'Xbox'], rating: 8.7, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Among+Us' },
-            { id: 16, title: 'Forza Horizon 5', description: 'Explore the vibrant and ever-evolving open world landscapes of Mexico with limitless, fun driving action in hundreds of the world’s greatest cars.', genres: ['Racing', 'Open-World', 'Sports'], platforms: ['PC', 'Xbox'], rating: 9.2, imageUrl: 'https://placehold.co/600x400/1a202c/ffffff?text=Forza+5' }
-        ];
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- DOM ELEMENTS ---
-        const promptInput = document.getElementById('prompt-input');
-        const recommendBtn = document.getElementById('recommend-btn');
-        const resultsGrid = document.getElementById('results-grid');
-        const resultsMessage = document.getElementById('results-message');
-        const btnText = document.getElementById('btn-text');
-        const loader = document.getElementById('loader');
+        // Firebase global variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof _firebase_config !== 'undefined' ? JSON.parse(_firebase_config) : {};
 
-        // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
-            recommendBtn.addEventListener('click', getAIRecommendations);
-            promptInput.addEventListener('keyup', (event) => {
-                if (event.key === 'Enter') {
-                    getAIRecommendations();
-                }
-            });
-            renderInitialState();
+        let db;
+        let auth;
+        let userId = '';
+        let isAuthReady = false;
+
+        const promptInput = document.getElementById('promptInput');
+        const suggestBtn = document.getElementById('suggestBtn');
+        const whatsappShareBtn = document.getElementById('whatsappShareBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const suggestionsList = document.getElementById('suggestionsList');
+        const historyList = document.getElementById('historyList');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const messageBox = document.getElementById('messageBox');
+
+        // Function to show a temporary message
+        function showMessage(message) {
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, 3000);
+        }
+
+        // Firebase Initialization and Auth
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        signInAnonymously(auth).then(() => {
+            isAuthReady = true;
+            userId = auth.currentUser.uid;
+            userIdDisplay.textContent = User ID: ${userId};
+            setupHistoryListener();
+        }).catch((error) => {
+            console.error("Firebase Auth Error:", error);
+            showMessage("Failed to authenticate. Please try again.");
         });
 
-        function renderInitialState() {
-             resultsGrid.innerHTML = '';
-             resultsMessage.textContent = 'Enter a description above to get started!';
-        }
-
-        // --- FUNCTIONS ---
-
-        /**
-         * Toggles the loading state of the UI.
-         * @param {boolean} isLoading - Whether to show the loading state.
-         */
-        function setLoading(isLoading) {
-            recommendBtn.disabled = isLoading;
-            if (isLoading) {
-                btnText.textContent = 'Thinking...';
-                loader.classList.remove('hidden');
-                resultsMessage.textContent = 'AI is searching for the best games...';
-            } else {
-                btnText.textContent = 'Get Recommendations';
-                loader.classList.add('hidden');
-            }
-        }
-        
-        /**
-         * Fetches AI-powered game recommendations based on the user's prompt.
-         */
-        async function getAIRecommendations() {
-            const userPrompt = promptInput.value.trim();
-            if (!userPrompt) {
-                resultsMessage.textContent = 'Please enter what you\'re looking for in a game.';
+        // Function to fetch and display previous suggestions
+        function setupHistoryListener() {
+            if (!isAuthReady) {
+                console.error("Auth not ready. Cannot set up history listener.");
                 return;
             }
-
-            setLoading(true);
-            resultsGrid.innerHTML = ''; // Clear previous results
-
-            // --- IMPORTANT ---
-            // To run this locally, you need a Google AI API Key.
-            // 1. Visit https://aistudio.google.com/app/apikey to create one.
-            // 2. Paste your key in the line below.
-            const apiKey = "AIzaSyBwFGrRUL3Pk41E3Rni8jdJSrglrUz9stM"; 
-
-            if (apiKey === "AIzaSyBwFGrRUL3Pk41E3Rni8jdJSrglrUz9stM") {
-                resultsMessage.textContent = "API Key not set. Please get a key from Google AI Studio and add it to the script to run this application.";
-                setLoading(false);
-                return;
-            }
-
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-            // This prompt instructs the AI to act as a recommender and only use our provided game list.
-            const fullPrompt = `You are an expert game recommender. Based on the user's request, select the top 5 most relevant games from the provided list. Return only the games that are a good match.
-
-User Request: "${userPrompt}"
-
-Game List (use only these games):
-${JSON.stringify(games, null, 2)}`;
-
-            const payload = {
-                contents: [{ parts: [{ text: fullPrompt }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                "id": { "type": "NUMBER" },
-                                "title": { "type": "STRING" },
-                                "description": { "type": "STRING" },
-                                "genres": { "type": "ARRAY", "items": { "type": "STRING" } },
-                                "platforms": { "type": "ARRAY", "items": { "type": "STRING" } },
-                                "rating": { "type": "NUMBER" },
-                                "imageUrl": { "type": "STRING" },
-                            },
-                        }
-                    }
-                }
-            };
+            const historyRef = collection(db, artifacts/${appId}/users/${userId}/game_suggestions);
             
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+            // Note: Firebase security rules are set up to handle lack of orderBy
+            const q = query(historyRef);
+            
+            onSnapshot(q, (snapshot) => {
+                const suggestions = [];
+                snapshot.forEach((doc) => {
+                    suggestions.push(doc.data());
                 });
 
-                if (!response.ok) {
-                    const errorBody = await response.json().catch(() => ({ error: { message: response.statusText } }));
-                    const errorMessage = errorBody.error?.message || response.statusText;
-                    throw new Error(`API Error (${response.status}): ${errorMessage}`);
+                // Sort the data in memory by timestamp in descending order
+                suggestions.sort((a, b) => b.timestamp - a.timestamp);
+
+                if (suggestions.length === 0) {
+                    historyList.innerHTML = '<p class="text-stone-400 text-sm italic">No previous suggestions found.</p>';
+                    return;
+                }
+
+                historyList.innerHTML = '';
+                suggestions.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'history-card';
+                    const promptText = item.prompt ? <strong class="text-stone-300">Prompt:</strong> ${item.prompt} : '';
+                    const timestamp = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString() : 'Just now';
+                    
+                    card.innerHTML = `
+                        <p class="text-stone-300 text-sm mb-2">${promptText}</p>
+                        <p class="text-stone-200 mt-2 whitespace-pre-wrap">${item.suggestion}</p>
+                        <p class="text-stone-500 text-xs mt-3">${timestamp}</p>
+                    `;
+                    historyList.appendChild(card);
+                });
+            }, (error) => {
+                console.error("Firestore Error:", error);
+                showMessage("Failed to load history. Check the console.");
+            });
+        }
+
+        // Handle WhatsApp share
+        whatsappShareBtn.addEventListener('click', () => {
+            const suggestionText = suggestionsList.querySelector('p')?.textContent;
+            if (!suggestionText) {
+                showMessage("Nothing to share yet!");
+                return;
+            }
+
+            const message = Check out these game suggestions I got from the Game Suggester app:\n\n${suggestionText}\n\n;
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = https://wa.me/?text=${encodedMessage};
+            window.open(whatsappUrl, '_blank');
+        });
+
+        // Handle button click
+        suggestBtn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showMessage("Please enter a prompt to get a suggestion.");
+                return;
+            }
+
+            if (!isAuthReady) {
+                 showMessage("Application is still loading. Please wait a moment.");
+                 return;
+            }
+
+            suggestBtn.disabled = true;
+            whatsappShareBtn.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            suggestionsList.innerHTML = '<p class="text-stone-400 text-sm italic">Generating suggestions...</p>';
+
+            try {
+                const payload = {
+                    contents: [{ parts: [{ text: You are a helpful assistant for suggesting games. Based on the user's prompt, suggest 10-15 games. Please format the response as a numbered list with the game name in bold and a short description for each, ensuring proper line spacing between each entry. Do not limit the response. The user's prompt is: "${prompt}" }] }],
+                    model: "gemini-2.5-flash-preview-05-20"
+                };
+
+                const apiKey = "AIzaSyDKgN0eDqenlPFNR5fwddmaaH1TEK7hZBQ";
+                const apiUrl = https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey};
+
+                let response;
+                let retryCount = 0;
+                const maxRetries = 3;
+                while (retryCount < maxRetries) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (response.ok) {
+                            break; // Success!
+                        }
+                    } catch (error) {
+                        console.error('Fetch error:', error);
+                    }
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+                }
+
+                if (!response || !response.ok) {
+                     throw new Error(API request failed with status ${response ? response.status : 'unknown'});
                 }
 
                 const result = await response.json();
-                
-                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
-                    const jsonText = result.candidates[0].content.parts[0].text;
-                    const recommendedGames = JSON.parse(jsonText);
-                    renderResults(recommendedGames);
+                const suggestionText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (suggestionText) {
+                    suggestionsList.innerHTML = <div class="result-card"><p class="text-stone-200 whitespace-pre-wrap">${suggestionText}</p></div>;
+                    whatsappShareBtn.classList.remove('hidden');
+                    
+                    // Save to Firestore
+                    const newSuggestion = {
+                        prompt: prompt,
+                        suggestion: suggestionText,
+                        timestamp: new Date()
+                    };
+                    await addDoc(collection(db, artifacts/${appId}/users/${userId}/game_suggestions), newSuggestion);
+                    showMessage("Suggestions saved!");
+
                 } else {
-                    throw new Error("Could not find recommendations in AI response.");
+                    suggestionsList.innerHTML = '<p class="text-stone-400 text-sm italic">Could not generate suggestions. Please try a different prompt.</p>';
+                    showMessage("Failed to get a suggestion. Try again.");
                 }
 
             } catch (error) {
-                console.error("Error fetching AI recommendations:", error);
-                if (error.message.startsWith('API Error')) {
-                    resultsMessage.textContent = `Error from AI service: ${error.message}. This could be due to a configuration or API key issue.`;
-                } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-                     resultsMessage.textContent = "Network error: Could not connect to the AI service. Please try again later.";
-                } else if (error instanceof SyntaxError) {
-                    resultsMessage.textContent = "The AI response was not in the expected format. It might not have found a good match. Please try a different search term.";
-                } else {
-                    resultsMessage.textContent = "Sorry, an unexpected error occurred. Please try again.";
-                }
+                console.error("API or Firestore error:", error);
+                suggestionsList.innerHTML = <p class="text-red-400 text-sm">An error occurred: ${error.message}</p>;
+                showMessage("An unexpected error occurred.");
             } finally {
-                setLoading(false);
+                suggestBtn.disabled = false;
+                loadingIndicator.classList.add('hidden');
             }
-        }
+        });
 
-        /**
-         * Renders the list of recommended games to the page.
-         * @param {object[]} recommendedGames - The array of game objects to display.
-         */
-        function renderResults(recommendedGames) {
-            resultsGrid.innerHTML = ''; // Clear previous results
-
-            if (!recommendedGames || recommendedGames.length === 0) {
-                resultsMessage.textContent = 'The AI couldn\'t find a match. Try a different description!';
-                return;
-            }
-            
-            resultsMessage.textContent = `The AI recommends these ${recommendedGames.length} games for you!`;
-
-            recommendedGames.forEach(game => {
-                const card = document.createElement('div');
-                card.className = 'game-card bg-gray-800 rounded-lg overflow-hidden shadow-lg flex flex-col';
-                
-                const genrePills = game.genres.map(g => `<span class="bg-indigo-600 text-indigo-100 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${g}</span>`).join('');
-                const platformPills = game.platforms.map(p => `<span class="bg-gray-600 text-gray-200 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${p}</span>`).join('');
-
-                card.innerHTML = `
-                    <img src="${game.imageUrl}" alt="${game.title}" class="w-full h-48 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/600x400/1a202c/ffffff?text=Image+Not+Found';">
-                    <div class="p-5 flex flex-col flex-grow">
-                        <div class="flex justify-between items-start mb-2">
-                           <h3 class="text-xl font-bold text-white">${game.title}</h3>
-                           <span class="text-lg font-bold text-amber-400">${game.rating}</span>
-                        </div>
-                        <p class="text-gray-400 text-sm mb-4 flex-grow">${game.description}</p>
-                        <div class="mt-auto pt-4">
-                           <div class="mb-3 flex flex-wrap gap-y-2">${genrePills}</div>
-                           <div class="flex flex-wrap gap-y-2">${platformPills}</div>
-                        </div>
-                    </div>
-                `;
-                resultsGrid.appendChild(card);
-            });
-        }
     </script>
-
 </body>
 </html>
-
