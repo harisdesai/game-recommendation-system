@@ -153,7 +153,18 @@
             setLoading(true);
             resultsGrid.innerHTML = ''; // Clear previous results
 
-            const apiKey = ""; // API key will be automatically provided in the environment.
+            // --- IMPORTANT ---
+            // To run this locally, you need a Google AI API Key.
+            // 1. Visit https://aistudio.google.com/app/apikey to create one.
+            // 2. Paste your key in the line below.
+            const apiKey = "AIzaSyBy0KgLhPB7-3R0fCalgXYhrzWk7gaddKo"; 
+
+            if (apiKey === "AIzaSyBy0KgLhPB7-3R0fCalgXYhrzWk7gaddKo") {
+                resultsMessage.textContent = "API Key not set. Please get a key from Google AI Studio and add it to the script to run this application.";
+                setLoading(false);
+                return;
+            }
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
             // This prompt instructs the AI to act as a recommender and only use our provided game list.
@@ -194,7 +205,9 @@ ${JSON.stringify(games, null, 2)}`;
                 });
 
                 if (!response.ok) {
-                    throw new Error(`API Error: ${response.statusText}`);
+                    const errorBody = await response.json().catch(() => ({ error: { message: response.statusText } }));
+                    const errorMessage = errorBody.error?.message || response.statusText;
+                    throw new Error(`API Error (${response.status}): ${errorMessage}`);
                 }
 
                 const result = await response.json();
@@ -209,7 +222,9 @@ ${JSON.stringify(games, null, 2)}`;
 
             } catch (error) {
                 console.error("Error fetching AI recommendations:", error);
-                if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                if (error.message.startsWith('API Error')) {
+                    resultsMessage.textContent = `Error from AI service: ${error.message}. This could be due to a configuration or API key issue.`;
+                } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
                      resultsMessage.textContent = "Network error: Could not connect to the AI service. Please try again later.";
                 } else if (error instanceof SyntaxError) {
                     resultsMessage.textContent = "The AI response was not in the expected format. It might not have found a good match. Please try a different search term.";
