@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Galactic Game Navigator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://kit.fontawesome.com/a477383794.js" crossorigin="anonymous"></script>
     <script type="module">
         // Constants
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
+        const TEXT_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=";
         const GEN_API_KEY = "AIzaSyDKgN0eDqenlPFNR5fwddmaaH1TEK7hZBQ"; // Provided by Canvas
-        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of three diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A very brief, one-sentence description, a maximum of 10 words.', 'system_requirements': 'A single, concise sentence listing only the key components (e.g., 'Requires a modern CPU, 8GB RAM, and a GTX 970 GPU').', 'platforms': '...' }";
-        const MAX_SYSTEM_REQ_LENGTH = 120; // Maximum character length for system requirements
+        const SYSTEM_PROMPT = "Act as a specialized AI game recommender. Your purpose is to provide a list of thirty diverse and compelling game titles based on a user's free-form preferences. Your output MUST be a single, valid JSON array of objects, with each object having the following structure: { 'game_title': '...', 'description': 'A brief and engaging one-sentence description.', 'minimum_system_requirements': 'A brief paragraph detailing the minimum system requirements, including processor, RAM, graphics card, and storage.', 'platforms': '...' }";
         const LOADING_MESSAGES = [
             "Scanning the digital universe...",
             "Consulting the AI core...",
@@ -18,6 +18,7 @@
             "Decrypting galactic data streams...",
             "Fine-tuning the algorithm..."
         ];
+        const GAMES_PER_PAGE = 10;
 
         // UI elements
         const form = document.getElementById('recommendation-form');
@@ -28,10 +29,16 @@
         const modal = document.getElementById('modal');
         const modalMessage = document.getElementById('modal-message');
         const modalCloseBtn = document.getElementById('modal-close-btn');
+        const platformCheckboxes = document.querySelectorAll('input[name="platform"]');
+        const historyContainer = document.getElementById('history-container');
 
         let lastUserPrompt = null;
         let loadingInterval = null;
-        const API_TIMEOUT = 20000; // 20 seconds timeout for the API call
+        let allGames = [];
+        let filteredGames = [];
+        let currentPage = 0;
+        const API_TIMEOUT = 25000; // Increased timeout for more results
+        let searchHistory = [];
 
         // Functions
         function showModal(message) {
@@ -43,9 +50,26 @@
             modal.classList.add('hidden');
         }
 
+        async function copyToClipboard(text) {
+            try {
+                // Use the older method for compatibility in all environments
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showModal("Copied to clipboard!");
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showModal("Failed to copy. Please try again.");
+            }
+        }
+
         // --- AI Recommendation Logic (Prompt-Based) ---
-        async function getRecommendation(userQuery, isShuffle = false) {
+        async function getRecommendation(userQuery) {
             // Update UI for loading state
+            resultsContainer.innerHTML = '';
             loadingSpinner.classList.remove('hidden');
             recommendBtn.disabled = true;
             let messageIndex = 0;
@@ -55,22 +79,21 @@
                 buttonText.textContent = LOADING_MESSAGES[messageIndex];
             }, 1000);
             
-            // Store the last valid prompt for the shuffle button
+            // Store the last valid prompt
             lastUserPrompt = userQuery;
-
-            // To ensure new results on shuffle, we append a unique ID to the prompt.
-            // This makes the AI treat it as a new request.
-            let uniquePrompt = userQuery;
-            if (isShuffle) {
-                uniquePrompt += ` - unique_id:${Date.now()}`;
+            
+            // Add to search history
+            const timestamp = new Date().toLocaleString();
+            searchHistory.unshift({ query: userQuery, platforms: [], timestamp: timestamp });
+            if (searchHistory.length > 5) {
+                searchHistory.pop();
             }
 
             // Payload for the AI Studio API call
             const payload = {
-                contents: [{ parts: [{ text: uniquePrompt }] }],
+                contents: [{ parts: [{ text: userQuery }] }],
                 systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
                 generationConfig: {
-                    // This configuration ensures the response is a structured JSON array
                     responseMimeType: "application/json",
                     responseSchema: {
                         type: "ARRAY",
@@ -79,7 +102,7 @@
                             properties: {
                                 game_title: { type: "STRING" },
                                 description: { type: "STRING" },
-                                system_requirements: { type: "STRING" },
+                                minimum_system_requirements: { type: "STRING" },
                                 platforms: { type: "STRING" }
                             }
                         }
@@ -91,8 +114,7 @@
             const id = setTimeout(() => controller.abort(), API_TIMEOUT);
 
             try {
-                // Fetch the recommendation from the API with a timeout
-                const response = await fetch(`${API_URL}${GEN_API_KEY}`, {
+                const response = await fetch(`${TEXT_API_URL}${GEN_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
@@ -109,7 +131,12 @@
                 if (result.candidates && result.candidates.length > 0 && result.candidates[0].content) {
                     const jsonText = result.candidates[0].content.parts[0].text;
                     const parsedJson = JSON.parse(jsonText);
-                    displayRecommendations(parsedJson);
+                    allGames = parsedJson;
+                    filteredGames = [...allGames];
+                    currentPage = 0;
+                    document.getElementById('platform-filters').classList.remove('hidden');
+                    displayRecommendations();
+                    displayHistory();
                 } else {
                     showModal("Failed to get a recommendation. The AI did not provide a valid response.");
                 }
@@ -129,68 +156,195 @@
                 buttonText.textContent = "SCAN FOR RECOMMENDATIONS";
             }
         }
+        
+        function filterRecommendations() {
+            const selectedPlatforms = Array.from(platformCheckboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value.toLowerCase());
 
-        function displayRecommendations(games) {
+            if (selectedPlatforms.length === 0) {
+                filteredGames = [...allGames];
+            } else {
+                filteredGames = allGames.filter(game => {
+                    const gamePlatforms = game.platforms.toLowerCase();
+                    return selectedPlatforms.some(platform => gamePlatforms.includes(platform));
+                });
+            }
+            currentPage = 0;
+            displayRecommendations();
+        }
+
+        function displayRecommendations() {
+            const gamesToDisplay = filteredGames.slice(currentPage * GAMES_PER_PAGE, (currentPage + 1) * GAMES_PER_PAGE);
+
+            if (gamesToDisplay.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="p-6 rounded-2xl shadow-xl border-4 border-gray-400 text-center text-gray-400 italic">
+                        <p>No games found for the selected filters. Try broadening your search!</p>
+                    </div>
+                `;
+                return;
+            }
+
             resultsContainer.innerHTML = `
                 <div class="p-6 rounded-2xl shadow-xl border-4 border-cyan-400 animate-fade-in-up">
                     <h2 class="text-2xl sm:text-3xl font-bold text-cyan-300 mb-4 text-center font-orbitron">Recommended Galactic Adventures:</h2>
-                    <ul class="space-y-6">
-                        ${games.map(game => {
-                            // Sanitize the data to prevent bugs
-                            const title = game.game_title || "Unknown Title";
-                            const description = game.description || "Description not available.";
-                            let systemReq = game.system_requirements || "System requirements not available.";
-
-                            // Truncate system requirements if they are too long
-                            if (systemReq.length > MAX_SYSTEM_REQ_LENGTH) {
-                                systemReq = systemReq.substring(0, MAX_SYSTEM_REQ_LENGTH) + '...';
-                            }
-
-                            const platforms = game.platforms || "Platforms not available.";
-
+                    <div class="space-y-4">
+                        ${gamesToDisplay.map((game, index) => {
+                            const steamLink = `https://store.steampowered.com/search/?term=${encodeURIComponent(game.game_title)}`;
+                            const epicLink = `https://www.epicgames.com/store/en-US/browse?q=${encodeURIComponent(game.game_title)}`;
+                            const gogLink = `https://www.gog.com/en/games?query=${encodeURIComponent(game.game_title)}`;
+                            
                             return `
-                                <li class="p-6 bg-slate-700 rounded-xl text-white shadow-lg border border-slate-600 transition-transform transform hover:scale-105">
-                                    <h3 class="text-xl sm:text-2xl text-cyan-200 font-bold mb-2">${title}</h3>
-                                    <p class="text-gray-300 text-sm mb-4">${description}</p>
-                                    <div class="text-xs text-gray-400 space-y-1">
-                                        <p class="font-semibold text-gray-200">Platforms: <span class="font-normal text-gray-400">${platforms}</span></p>
-                                        <p class="font-semibold text-gray-200">System Requirements: <span class="font-normal text-gray-400">${systemReq}</span></p>
+                                <div class="recommendation-item bg-slate-700 rounded-xl overflow-hidden shadow-lg border border-slate-600 transition-all duration-300 transform hover:scale-105">
+                                    <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-600 transition-colors">
+                                        <h3 class="text-lg sm:text-xl text-cyan-200 font-bold">${game.game_title || "Unknown Title"}</h3>
+                                        <svg class="arrow-icon w-6 h-6 text-gray-400 transform rotate-0 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
                                     </div>
-                                </li>
+                                    <div class="details-content max-h-0 overflow-hidden transition-all duration-300">
+                                        <div class="p-4 pt-0">
+                                            <p class="text-gray-300 text-sm mb-4">${game.description || "Description not available."}</p>
+                                            <div class="text-xs text-gray-400 space-y-1">
+                                                <p class="font-semibold text-gray-200">Platforms: <span class="font-normal text-gray-400">${game.platforms || "Platforms not available."}</span></p>
+                                                <p class="font-semibold text-gray-200">Minimum System Requirements: <span class="font-normal text-gray-400">${game.minimum_system_requirements || "System requirements not available."}</span></p>
+                                            </div>
+                                            <div class="mt-4 flex flex-wrap gap-2 justify-end items-center">
+                                                ${game.platforms.toLowerCase().includes('steam') ? `<a href="${steamLink}" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-full transition-colors"><i class="fa-brands fa-steam-symbol"></i> Steam</a>` : ''}
+                                                ${game.platforms.toLowerCase().includes('epic') ? `<a href="${epicLink}" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-full transition-colors"><i class="fa-brands fa-epic-games"></i> Epic</a>` : ''}
+                                                ${game.platforms.toLowerCase().includes('gog') ? `<a href="${gogLink}" target="_blank" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-full transition-colors"><i class="fa-solid fa-cloud-arrow-down"></i> GOG</a>` : ''}
+                                                <button class="share-btn px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-sm font-semibold rounded-full transition-colors" data-index="${index}">
+                                                    Share
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             `;
                         }).join('')}
-                    </ul>
-                    <div class="flex justify-center mt-6">
-                        <button id="shuffle-btn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-800">
-                            Shuffle
+                    </div>
+                    <div id="pagination-controls" class="flex justify-between mt-6">
+                        <button id="prev-btn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Previous
+                        </button>
+                        <button id="next-btn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Next
                         </button>
                     </div>
                 </div>
             `;
-            const shuffleBtn = document.getElementById('shuffle-btn');
-            shuffleBtn.addEventListener('click', () => {
-                if (lastUserPrompt) {
-                    getRecommendation(lastUserPrompt, true);
-                } else {
-                    showModal("Please perform a scan first before shuffling.");
+            
+            // Add event listeners for the accordion and share buttons
+            document.querySelectorAll('.recommendation-item > div:first-child').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const detailsContent = item.nextElementSibling;
+                    const arrowIcon = item.querySelector('.arrow-icon');
+                    
+                    if (item.parentElement.classList.contains('is-expanded')) {
+                        item.parentElement.classList.remove('is-expanded');
+                        arrowIcon.classList.remove('rotate-180');
+                    } else {
+                        item.parentElement.classList.add('is-expanded');
+                        arrowIcon.classList.add('rotate-180');
+                    }
+                });
+            });
+
+            document.querySelectorAll('.share-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    const game = filteredGames[currentPage * GAMES_PER_PAGE + index];
+                    const shareText = `Check out this game!
+Title: ${game.game_title}
+Description: ${game.description}
+Platforms: ${game.platforms}
+Minimum System Requirements: ${game.minimum_system_requirements}`;
+                    copyToClipboard(shareText);
+                });
+            });
+            
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = (currentPage + 1) * GAMES_PER_PAGE >= filteredGames.length;
+
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 0) {
+                    currentPage--;
+                    displayRecommendations();
+                }
+            });
+
+            nextBtn.addEventListener('click', () => {
+                if ((currentPage + 1) * GAMES_PER_PAGE < filteredGames.length) {
+                    currentPage++;
+                    displayRecommendations();
                 }
             });
         }
+        
+        function displayHistory() {
+            if (searchHistory.length === 0) {
+                historyContainer.innerHTML = '';
+                historyContainer.parentElement.classList.add('hidden');
+                return;
+            }
+
+            historyContainer.parentElement.classList.remove('hidden');
+            historyContainer.innerHTML = searchHistory.map((item, index) => `
+                <div class="bg-slate-700 p-4 rounded-lg shadow-inner flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <div>
+                        <p class="text-gray-300 font-bold">'${item.query}'</p>
+                        <p class="text-xs text-gray-500 mt-1">Platforms: ${item.platforms.length > 0 ? item.platforms.join(', ') : 'Any'}</p>
+                        <p class="text-xs text-gray-500 mt-1">Searched on: ${item.timestamp}</p>
+                    </div>
+                    <button class="history-search-btn mt-3 sm:mt-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-full transition-colors" data-index="${index}">
+                        Re-run Scan
+                    </button>
+                </div>
+            `).join('');
+
+            document.querySelectorAll('.history-search-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    const historyItem = searchHistory[index];
+                    document.getElementById('user-prompt').value = historyItem.query;
+                    platformCheckboxes.forEach(checkbox => {
+                        if (historyItem.platforms.includes(checkbox.value)) {
+                            checkbox.checked = true;
+                        } else {
+                            checkbox.checked = false;
+                        }
+                    });
+                    getRecommendation(historyItem.query, historyItem.platforms);
+                });
+            });
+        }
+
 
         // --- Event Listeners ---
         document.addEventListener('DOMContentLoaded', () => {
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const userPrompt = document.getElementById('user-prompt').value;
+                const selectedPlatforms = Array.from(platformCheckboxes)
+                    .filter(checkbox => checkbox.checked)
+                    .map(checkbox => checkbox.value);
 
                 if (!userPrompt) {
                     showModal("Please enter your preferences to initiate the scan.");
                     return;
                 }
-                getRecommendation(userPrompt);
+                getRecommendation(userPrompt, selectedPlatforms);
             });
 
             modalCloseBtn.addEventListener('click', hideModal);
+            
+            platformCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', filterRecommendations);
+            });
         });
 
     </script>
@@ -200,6 +354,35 @@
 
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e; /* Fallback for older browsers */
+            background: radial-gradient(circle at 50% 50%, #1a1a2e, #0f0b17);
+            background-size: 200% 200%;
+            animation: background-pulse 20s ease-in-out infinite;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3MCIgaGVpZ2h0PSI3MCI+CiAgPGZpbHRlciBpZD0ibm9pc2UiPgogICAgPGZlVHVyYnVsaWNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjY1IiBudW0tT2N0YXZlcz0iMiIgcmVzdWx0PSJ0dXJidWxlbmNlIi8+CiAgICA8ZmVDb2xvck1hdHJpeCBpbj0idHVyYnVsZW5jZSIgb3BlcmF0b3I9ImxpZ2h0ZW4iIHZhbHVlcz0iLjEgMCAwIDAgMCAwIC4xIDAgMCAwIDAgMCAuMSAwIDAgMCAwIDAgLjIgMCIvPgogIDwvZmlsdGVyPgogIDxyZWN0IHdpZHRoPSI3MCIgaGVpZ2h0PSI3MCIgZmlsbD0idHJhbnNwYXJlbnQiLz4KICA8cmVjdCB3aWR0aD0iNzAiIGhlaWdodD0iNzAiIGZpbHRlcj0idXJsKCNub2lzZSkiIG9wYWNpdHk9IjAuMjUiLz4KPC9zdmc+');
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        @keyframes background-pulse {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes shadow-pulse {
+            0% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); }
+            100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
         }
 
         .font-orbitron {
@@ -219,6 +402,16 @@
         }
         .animate-fade-in-up {
             animation: fadeInScale 0.6s ease-out forwards;
+        }
+
+        .details-content {
+            transition: max-height 0.5s ease-in-out;
+        }
+        .recommendation-item:not(.is-expanded) .details-content {
+            max-height: 0;
+        }
+        .recommendation-item.is-expanded .details-content {
+            max-height: 1000px; /* A large value to allow the transition to work */
         }
     </style>
 </head>
@@ -241,12 +434,37 @@
 
         <main class="flex flex-col gap-8 lg:gap-12">
             <!-- Recommendation Form Section -->
-            <section class="bg-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-slate-700">
+            <section class="bg-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-slate-700 animate-fade-in-up">
                 <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-gray-100 font-orbitron">Initiate Scan</h2>
                 <form id="recommendation-form" class="space-y-6">
                     <div>
                         <label for="user-prompt" class="block text-sm font-medium text-gray-300 mb-2">Describe your desired game:</label>
                         <input type="text" id="user-prompt" placeholder="e.g., 'a relaxing sci-fi puzzle game for PC'" class="w-full p-3 rounded-lg bg-slate-700 text-gray-200 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors">
+                    </div>
+                    <div id="platform-filters" class="hidden">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Filter by Platform:</label>
+                        <div class="flex flex-wrap gap-4">
+                            <label class="flex items-center text-gray-400">
+                                <input type="checkbox" name="platform" value="PC" class="form-checkbox h-4 w-4 text-cyan-600 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">PC</span>
+                            </label>
+                            <label class="flex items-center text-gray-400">
+                                <input type="checkbox" name="platform" value="PS5" class="form-checkbox h-4 w-4 text-cyan-600 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">PS5</span>
+                            </label>
+                            <label class="flex items-center text-gray-400">
+                                <input type="checkbox" name="platform" value="Xbox" class="form-checkbox h-4 w-4 text-cyan-600 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Xbox</span>
+                            </label>
+                            <label class="flex items-center text-gray-400">
+                                <input type="checkbox" name="platform" value="Nintendo" class="form-checkbox h-4 w-4 text-cyan-600 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Nintendo</span>
+                            </label>
+                            <label class="flex items-center text-gray-400">
+                                <input type="checkbox" name="platform" value="Mobile" class="form-checkbox h-4 w-4 text-cyan-600 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Mobile</span>
+                            </label>
+                        </div>
                     </div>
                     <button id="recommend-btn" type="submit" class="w-full mt-6 py-4 px-6 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-600 hover:to-indigo-700 text-white font-bold rounded-full shadow-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed">
                         <span id="button-text">SCAN FOR RECOMMENDATIONS</span>
@@ -258,10 +476,18 @@
             </section>
 
             <!-- Results Section -->
-            <section class="bg-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-slate-700">
+            <section class="bg-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-slate-700 animate-fade-in-up">
                 <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-gray-100 font-orbitron">Scan Results</h2>
                 <div id="recommendation-results" class="text-center text-gray-400 italic">
                     <p>AI awaits your command... Initiate scan to find your next adventure!</p>
+                </div>
+            </section>
+
+            <!-- History Section -->
+            <section id="history-section" class="hidden bg-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl border-2 border-slate-700 animate-fade-in-up">
+                <h2 class="text-2xl sm:text-3xl font-bold mb-6 text-gray-100 font-orbitron">Your Recent Scans</h2>
+                <div id="history-container" class="space-y-4">
+                    <!-- History items will be dynamically added here -->
                 </div>
             </section>
         </main>
